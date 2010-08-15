@@ -1,5 +1,4 @@
 <?php
-//include "a.charset.php";
 
 function getUrlsFromPage($url, $domain, $test){
 	global $title;
@@ -75,11 +74,11 @@ $file_array = file($filename);
 function connectToDB(){
 	$host='localhost'; 
 	$database='pars';
-	$user='parer';
-	$pswd='Rmb8KpJpPTnbpRWJ';
+	$user='pars';
+	$pswd='wgGLtqMf';
 	 
-	$dbh = mysql_connect($host, $user, $pswd) or die("I died");
-	mysql_select_db($database) or die("db died");	
+	$dbh = mysql_connect($host, $user, $pswd) or die("can`t connect to mysql");
+	mysql_select_db($database) or die("can` connect to database");	
 	mysql_query("SET NAMES 'utf8'");
 	mysql_query("SET CHARACTER_SET_CLIENT=utf8");
 	mysql_query("SET CHARACTER_SET_RESULTS=utf8");
@@ -140,7 +139,7 @@ function addURL($urlFromPage){
 	$sql_file = "insert into `other` (`domain`, `url`) values \n";
 	$sql_music = "insert into `music` (`domain`, `url`, `format`) values \n";
 	foreach($u_url as $sql_part){
-		if (preg_match("~.*/[^/]*\.([^/]*)$~", $sql_part, $test2)){
+		if (preg_match("~.*\.([^/]*)$~", $sql_part, $test2)){
 			$test2 = strtolower($test2[1]);
 			switch ($test2){
 				case 'html' : 
@@ -305,16 +304,20 @@ function arrToString($arr, $p=''){
 }
 
 
-connectToDB();
 
-//$domains = $argv;
+$param = $argv[1];
 
-
-$domains = getArr("domains.txt");
+if (file_exists($param)){
+	$domains = getArr("$param");
+} else {
+	echo "no file"; 
+	die;
+}
 global $title;
 global $html;
 global $num_domain;
 
+connectToDB();
 checkTable($domains);
 for(;;){
 	$num_domain = 0;
