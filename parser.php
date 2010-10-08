@@ -1,22 +1,81 @@
 <?php
 
-function getUrlsFromPage($url, $domain, $test){
-	global $title;
-	global $html;
+class parser {
+var $domains = null;
+
+var $urls = null;
+var $urlsForAdd = null;
+var $urlsFromPage = null;
+
+var $title = null;
+var $html = null;
+var $url = null;
+var $domain = null;
+
+function parser ($domains){
+	$this->domains = $domains;
+	$this->urls = $this->checkTable();
+}
+
+
+function startParsing (){
+	echo "start parsing\n";
+	$num_domain = count($this->domains);
+	for(;;){
+		foreach($this->domains as $this->domain){
+			if ( count($this->urls[$this->domain])  < 1 ){
+				// TODO add urls
+				$this->urls = array_merge( $this->urls, $this->getURL() );
+				if ( count($this->urls[$this->domain]) < 1){
+					unset ( $this->domains[$this->domain] );
+					continue;
+				}
+			}
+			foreach($this->urls[$this->domain] as $this->id => $this->url){
+				$this->link = 'http://'.$this->domain.'/'.$this->url;
+				//$urlsFromPage = getUrlsFromPage('http://'.$domain.'/'.$url, 'http://'.$domain, $url);
+				$this->urlsFromPage = $this->getUrlsFromPage();
+				$this->info = '';
+				$this->recals = '';
+				if ($this->urlsFromPage){
+					if (is_array($this->urlsFromPage)){
+						$this->urlsFromPage = array_unique($this->urlsFromPage);
+						$this->recals = $this->addURL();
+					} else {
+						$this->info = $this->urlsFromPage;
+					}
+				} 
+				$this->updateURL();
+				if ( count($this->domains) <= 3){
+					sleep(1);
+				}
+				unset ($this->urls[$this->domain][$this->id]);
+				break;
+
+			}	
+		}
+		
+	}
+
+}
+
+function getUrlsFromPage(){
         $arr = '';
 	
-	echo $url."	\n";
+	echo "$this->link\n";
 
         $doc = new DOMDocument();
-        if(@ $doc->loadHTMLFile($url)) {
-		$html = $doc->saveHTML();
+        if(@ $doc->loadHTMLFile($this->link)) {
+		$this->html = $doc->saveHTML();
                 $title =  $doc->getElementsByTagName("title");
 		if ($title){
 			if ($title = $title->item(0)){
-				$title = $title->textContent;
+				$this->title = $title->textContent;
+			} else {
+				$this->title = '';
 			}
 		} else {
-			$title = '';
+			$this->title = '';
 		}
                 $urls =  $doc->getElementsByTagName("a");
                 if (!$urls){
@@ -33,9 +92,9 @@ function getUrlsFromPage($url, $domain, $test){
 							$arr[] = $pre_url;
 						} else {
 							if(preg_match("/^(\/)/", $pre_url)){
-								$arr[] = $domain.$pre_url;
+								$arr[] = $this->domain.$pre_url;
 							} else {
-								$arr[] = $domain.'/'.$pre_url;
+								$arr[] = $this->domain.'/'.$pre_url;
 							}
 						}
 					}
@@ -48,46 +107,23 @@ function getUrlsFromPage($url, $domain, $test){
 	}
 }
 
-function getArr($filename){
-        
-$file_array = file($filename);
-        foreach ($file_array as $i => $url){
-                $file_array[$i] = rtrim($file_array[$i]);
-        }
-        return $file_array;
-}
-
-function connectToDB(){
-	$host='localhost'; 
-	$database='pars';
-	$user='pars';
-	$pswd='wgGLtqMf';
-	 
-	$dbh = mysql_connect($host, $user, $pswd) or die("can`t connect to mysql");
-	mysql_select_db($database) or die("can` connect to database");	
-	mysql_query("SET NAMES 'utf8'");
-	mysql_query("SET CHARACTER_SET_CLIENT=utf8");
-	mysql_query("SET CHARACTER_SET_RESULTS=utf8");
-	echo "connected to DB\n";
-}
-
-function getURL($domain){
+function getURL(){
 	$urls = array();
-	$result = mysql_query("select url,id from `parsing` where parsed = '0' and domain = '$domain'  limit 10000");
+	$result = mysql_query("select url,id from `parsing` where parsed = '0' and domain = '$this->domain'  limit 10000");
 	if (mysql_num_rows($result)){
 		while ($row = mysql_fetch_array($result)){
-			$urls[$domain][$row['id']] = $row['url'];
+			$urls[$this->domain][$row['id']] = $row['url'];
 		}
 	} else {
-		$urls[$domain];
+		$urls[$this->domain] = null;
 	}
 	return $urls;
 }
 
 
-function addURL($urlFromPage){
+function addURL(){
 	$recals = '';
-	foreach($urlFromPage as $list){
+	foreach($this->urlsFromPage as $list){
 		if (preg_match("~http://([^/]*)/*(.*)~", $list, $parsed)){
 			$url_arr[$parsed[1]][] = $parsed[2];
 		}
@@ -202,7 +238,7 @@ function addURL($urlFromPage){
 }
 
 
-function checkTable($domains){
+function checkTable(){
 	mysql_query("CREATE TABLE IF NOT EXISTS `parsing` (
 		`id` int(11) NOT NULL auto_increment,
 		`parsed` bool DEFAULT 0,
@@ -215,7 +251,7 @@ function checkTable($domains){
 		`time` timestamp NOT NULL default CURRENT_TIMESTAMP on update CURRENT_TIMESTAMP,
 		PRIMARY KEY  (`id`));
 	");
-
+echo mysql_error();
 	mysql_query("CREATE TABLE IF NOT EXISTS `other` (
 		`id` int(11) NOT NULL auto_increment,
 		`parsed` bool DEFAULT 0,
@@ -237,7 +273,7 @@ function checkTable($domains){
 		PRIMARY KEY  (`id`));
 	");
 	$urls = array();
-	foreach ($domains as $d){
+	foreach ($this->domains as $d){
 		$result = mysql_query("select id from `parsing` where `url` = '' and domain = '$d'");
 		if (!mysql_num_rows($result)){
 			mysql_query("insert into `parsing` set `url` = '' ,  domain = '$d'");
@@ -251,16 +287,16 @@ function checkTable($domains){
 			}
 		}
 	}
-	echo "check and/or created tables\n";
+	echo "check [and created] tables\n";
 	return $urls;
 }
 
-function updateURL($recals, $id, $title, $info, $html){
+function updateURL(){
 	$sql_q =  "UPDATE  `parsing` SET  `parsed` =  '1',
-		`recalls` =  '".mysql_escape_string(arrToString($recals))."',
-		`info` =  '".mysql_escape_string(arrToString($info))."',
-		`html` =  '".mysql_escape_string(arrToString($html))."',
-		`title` =  '".mysql_escape_string($title)."' WHERE  `id` = $id;";
+		`recalls` =  '".mysql_escape_string($this->arrToString($this->recals))."',
+		`info` =  '".mysql_escape_string($this->arrToString($this->info))."',
+		`html` =  '".mysql_escape_string($this->arrToString($this->html))."',
+		`title` =  '".mysql_escape_string($this->title)."' WHERE  `id` = $this->id;";
 	mysql_query($sql_q);
 	
 	//echo "error1:	";
@@ -294,8 +330,7 @@ function arrToString($arr, $p=''){
 	}
 }
 
-
-
+}
 
 if ( ( isset($argv[1]) ) and (file_exists($argv[1]) ) ){
 	$domains = getArr($argv[1]);
@@ -303,52 +338,39 @@ if ( ( isset($argv[1]) ) and (file_exists($argv[1]) ) ){
 	echo "no file \n"; 
 	die;
 }
-global $title;
-global $html;
-global $num_domain;
+
+function getArr($filename){
+        
+$file_array = file($filename);
+        foreach ($file_array as $i => $url){
+                $file_array[$i] = rtrim($file_array[$i]);
+        }
+        return $file_array;
+}
+
+
+function connectToDB(){
+	echo "connecting to DB";
+	$host='localhost'; 
+	$database='pars';
+	$user='pars';
+	$pswd='wgGLtqMf';
+	 
+	$dbh = mysql_connect($host, $user, $pswd) or die("can`t connect to mysql");
+	echo " .";
+	mysql_select_db($database) or die("can` connect to database");	
+	echo ". ";
+	mysql_query("SET NAMES 'utf8'");
+	mysql_query("SET CHARACTER_SET_CLIENT=utf8");
+	mysql_query("SET CHARACTER_SET_RESULTS=utf8");
+	echo "connected\n";
+}
 
 $domain_end = array();
+// config
 connectToDB();
-$urls = checkTable($domains);
-$num_domain = count($domains);
-for(;;){
-	foreach($domains as $domain){
-		if ( isset( $domain_end[$domain] ) ){
-			continue;
-		}
-		if ( count($urls[$domain])  < 1 ){
-			$urls = array_merge( $urls, getURL($domain) );
-			if ( count($url[$domain]) < 1){
-				$domain_end[$domain] = true;
-				continue;
-			}
-		}
-		foreach($urls[$domain] as $id => $url){
-			$urlsFromPage =  getUrlsFromPage('http://'.$domain.'/'.$url, 'http://'.$domain, $url);
-			$info = '';
-			$recals = '';
-			if ($urlsFromPage){
-				if (is_array($urlsFromPage)){
-					$urlsFromPage = array_unique($urlsFromPage);
-					$recals = addURL($urlsFromPage, $domain, $url);
-				} else {
-					$info = $urlsFromPage;
-				}
-			} 
-			updateURL($recals, $id, $title, $info, $html);
-			if ( $num_domain - count($domain_end) <= 3){
-				sleep(1);
-			}
-			if ( $num_domain - count($domain_end) == 0){
-				echo "all\n";
-				die;
-			}
-			unset ($urls[$domain][$id]);
-			break;
+$parser = new parser($domains);
+$parser->startParsing();
 
-		}	
-	}
-	
-}
 echo "et all\n";
 ?>
